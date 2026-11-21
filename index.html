@@ -1,0 +1,682 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<title>Inbox Sweep</title>
+<style>
+  :root{--bg:#f4f5f7;--card:#fff;--ink:#0f172a;--mute:#64748b;--line:#e2e8f0;--green:#16a34a;--greenbg:#dcfce7;--grey:#334155;--accent:#2563eb}
+  @media(prefers-color-scheme:dark){:root{--bg:#0b1020;--card:#151c33;--ink:#f1f5f9;--mute:#94a3b8;--line:#263052;--green:#22c55e;--greenbg:#14532d;--grey:#cbd5e1;--accent:#60a5fa}}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  body{display:flex;flex-direction:column;padding:env(safe-area-inset-top) 16px env(safe-area-inset-bottom)}
+  header{display:flex;align-items:center;justify-content:space-between;padding:14px 0 8px}
+  h1{font-size:18px;margin:0}
+  .icon{background:none;border:0;color:var(--mute);font-size:22px;padding:6px 10px;cursor:pointer}
+  main{flex:1;display:flex;flex-direction:column;justify-content:center;max-width:480px;width:100%;margin:0 auto;padding-bottom:16px}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:22px}
+  .panel h2{margin:0 0 8px;font-size:20px}
+  .panel p{color:var(--mute);margin:0 0 14px}
+  label{display:block;font-size:13px;color:var(--mute);margin:12px 0 4px}
+  input[type=text],textarea,select{width:100%;padding:11px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit}
+  textarea{min-height:80px;resize:vertical}
+  button.btn{border:0;border-radius:14px;padding:15px 18px;font:600 16px inherit;cursor:pointer;width:100%}
+  .primary{background:var(--accent);color:#fff}
+  .ghost{background:transparent;border:1px solid var(--line)!important;color:var(--ink)}
+  .stack{display:flex;flex-direction:column;gap:10px;margin-top:14px}
+  .progress{display:flex;align-items:center;gap:10px;color:var(--mute);font-size:13px;margin-bottom:12px}
+  .bar{flex:1;height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+  .bar>i{display:block;height:100%;background:var(--accent);width:0;transition:width .25s}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:24px;padding:24px;touch-action:pan-y;transition:transform .2s,opacity .2s;user-select:none}
+  .avatar{width:56px;height:56px;border-radius:16px;display:grid;place-items:center;font-size:26px;font-weight:700;color:#fff;margin-bottom:12px}
+  .name{font-size:22px;font-weight:700;word-break:break-word}
+  .addr{color:var(--mute);font-size:14px;word-break:break-all}
+  .count{display:inline-block;margin:14px 0 10px;background:var(--greenbg);color:var(--green);font-weight:700;border-radius:999px;padding:5px 12px;font-size:14px}
+  ul.subs{list-style:none;margin:0;padding:0}
+  ul.subs li{padding:9px 0;border-top:1px solid var(--line);font-size:14px;display:flex;justify-content:space-between;gap:10px}
+  ul.subs li span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  ul.subs li span:last-child{color:var(--mute);flex:none}
+  .more{color:var(--mute);font-size:13px;padding-top:6px}
+  .actions{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
+  .read{background:var(--green);color:#fff}
+  .leave{background:var(--card);color:var(--ink);border:1px solid var(--line)!important}
+  .row{display:flex;justify-content:space-between;align-items:center;margin-top:12px;font-size:14px}
+  .link{background:none;border:0;color:var(--accent);font:inherit;font-weight:500;cursor:pointer;padding:6px 0;text-decoration:none}
+  .link:disabled{color:var(--mute);opacity:.5;cursor:default}
+  .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;max-width:90%}
+  .toast.on{opacity:1}
+  .err{color:#dc2626;font-size:14px;margin-top:10px;white-space:pre-wrap}
+  .stats{display:flex;gap:10px;margin:14px 0}
+  .stat{flex:1;background:var(--bg);border-radius:14px;padding:12px;text-align:center}
+  .stat b{display:block;font-size:24px}
+  .stat span{font-size:12px;color:var(--mute)}
+  .hint{color:var(--mute);font-size:12px;text-align:center;margin-top:10px}
+  .hidden{display:none!important}
+  pre.log{max-height:180px;overflow:auto;background:var(--bg);border-radius:10px;padding:10px;font-size:12px;margin:0}
+
+  /* ---------- Visual refresh ---------- */
+  :root{
+    --bg:#eef1f8;--card:#ffffff;--ink:#0f172a;--mute:#6b7690;--line:#e4e8f2;
+    --green:#16a34a;--green2:#22c55e;--greenbg:#dcfce7;--accent:#4f46e5;--accent2:#7c3aed;
+    --shadow:0 1px 2px rgba(15,23,42,.04),0 12px 32px -8px rgba(30,41,99,.18);
+    --glow1:rgba(99,102,241,.22);--glow2:rgba(16,185,129,.16);
+  }
+  @media(prefers-color-scheme:dark){:root{
+    --bg:#090d1c;--card:#131a33;--ink:#f1f5f9;--mute:#8b97b5;--line:#232c4f;
+    --green:#34d399;--green2:#10b981;--greenbg:rgba(16,185,129,.16);--accent:#818cf8;--accent2:#a78bfa;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 16px 40px -10px rgba(0,0,0,.6);
+    --glow1:rgba(99,102,241,.25);--glow2:rgba(16,185,129,.12);
+  }}
+  body{
+    background:
+      radial-gradient(520px 360px at 85% -5%,var(--glow1),transparent 70%),
+      radial-gradient(480px 340px at -10% 105%,var(--glow2),transparent 70%),
+      var(--bg);
+    background-attachment:fixed;
+    font-family:"Inter",-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  header{padding:16px 0 6px}
+  h1{display:flex;align-items:center;gap:10px;font-size:19px;letter-spacing:-.02em}
+  h1 .logo{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;font-size:17px;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 6px 14px -4px var(--accent)}
+  .icon{border-radius:12px;width:40px;height:40px;padding:0;display:grid;place-items:center;
+    background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow);font-size:18px}
+
+  .panel{border-radius:26px;padding:28px 24px;box-shadow:var(--shadow);border:1px solid var(--line)}
+  .panel h2{font-size:24px;letter-spacing:-.02em;line-height:1.2}
+  .panel p{font-size:15px;line-height:1.5}
+  .hero{width:64px;height:64px;border-radius:20px;display:grid;place-items:center;font-size:30px;margin-bottom:16px;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 12px 24px -8px var(--accent)}
+  button.btn{font-family:inherit;font-weight:600;border-radius:16px;padding:16px 18px;font-size:16px;letter-spacing:-.01em;transition:transform .12s,box-shadow .2s,filter .2s}
+  button.btn:active{transform:scale(.97)}
+  .primary{background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 10px 22px -8px var(--accent)}
+  .ghost{background:var(--card)}
+
+  .progress{font-size:12.5px;font-weight:600;letter-spacing:.02em;margin-bottom:16px}
+  .bar{height:8px;border-radius:99px;background:color-mix(in srgb,var(--line) 85%,transparent)}
+  .bar>i{border-radius:99px;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+  .pill{background:var(--greenbg);color:var(--green);padding:3px 10px;border-radius:99px;font-weight:700}
+
+  /* stacked deck */
+  .deck{position:relative;margin:4px 8px 0}
+  .deck::before,.deck::after{content:"";position:absolute;left:0;right:0;top:0;bottom:0;border-radius:28px;
+    background:var(--card);border:1px solid var(--line);z-index:0}
+  .deck::before{transform:translateY(14px) scaleX(.9);opacity:.55}
+  .deck::after{transform:translateY(7px) scaleX(.95);opacity:.85}
+  .deck.last::before,.deck.last::after{display:none}
+  .card{position:relative;z-index:1;border-radius:28px;padding:26px 24px 20px;box-shadow:var(--shadow);animation:rise .35s cubic-bezier(.2,.8,.2,1);overflow:hidden}
+  .card::before{content:"";position:absolute;inset:0 0 auto 0;height:96px;opacity:.10;pointer-events:none;
+    background:linear-gradient(180deg,var(--hue,var(--accent)),transparent)}
+  @keyframes rise{from{transform:translateY(14px) scale(.98);opacity:0}to{transform:none;opacity:1}}
+  .card.badge-read::after,.card.badge-leave::after{position:absolute;top:18px;right:18px;font-weight:800;font-size:13px;letter-spacing:.08em;
+    padding:5px 10px;border-radius:10px;border:2px solid currentColor}
+  .card.badge-read::after{content:"READ";color:var(--green)}
+  .card.badge-leave::after{content:"LEAVE";color:var(--mute)}
+
+  .avatar{width:64px;height:64px;border-radius:20px;font-size:28px;margin-bottom:14px;position:relative;
+    box-shadow:0 10px 20px -8px var(--hue,var(--accent));text-shadow:0 1px 2px rgba(0,0,0,.2)}
+  .name{font-size:24px;letter-spacing:-.02em;line-height:1.15}
+  .addr{margin-top:2px}
+  .count{display:inline-flex;align-items:center;gap:6px;margin:16px 0 8px;font-size:14px;padding:6px 13px}
+  .count::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--green2);box-shadow:0 0 0 3px color-mix(in srgb,var(--green2) 25%,transparent)}
+  ul.subs{margin-top:4px}
+  ul.subs li{padding:11px 0;font-size:14.5px}
+  ul.subs li:first-child{border-top:0}
+  .actions{gap:12px;margin-top:18px}
+  .actions .btn{padding:18px 12px;font-size:16px;border-radius:18px}
+  .read{background:linear-gradient(135deg,var(--green2),var(--green));box-shadow:0 12px 22px -10px var(--green2)}
+  .leave{background:var(--bg);border:1px solid var(--line)!important}
+  .row{margin-top:10px;padding-top:6px}
+  .hint{margin-top:22px;font-size:12px;letter-spacing:.01em}
+  .toast{border-radius:14px;box-shadow:var(--shadow);font-weight:500}
+  .stats{gap:12px;margin:18px 0 8px}
+  .stat{border-radius:18px;padding:16px 8px;border:1px solid var(--line)}
+  .stat b{font-size:28px;letter-spacing:-.02em;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .spinner{width:34px;height:34px;border-radius:50%;border:4px solid var(--line);border-top-color:var(--accent);animation:spin .8s linear infinite;margin-bottom:16px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  input[type=text],textarea,select{border-radius:12px;padding:12px 14px}
+  input:focus,textarea:focus,select:focus{outline:2px solid var(--accent);outline-offset:1px}
+  @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+  /* ---------- Monochrome / crisp theme ---------- */
+  :root{
+    --bg:#ffffff;--card:#ffffff;--ink:#0a0a0a;--mute:#737373;--line:#0a0a0a;--hair:#e5e5e5;
+    --green:#0a0a0a;--green2:#0a0a0a;--greenbg:#f5f5f5;--accent:#0a0a0a;--accent2:#0a0a0a;
+    --shadow:none;--glow1:transparent;--glow2:transparent;--on:#ffffff;
+  }
+  @media(prefers-color-scheme:dark){:root{
+    --bg:#000000;--card:#000000;--ink:#fafafa;--mute:#8a8a8a;--line:#fafafa;--hair:#262626;
+    --green:#fafafa;--green2:#fafafa;--greenbg:#141414;--accent:#fafafa;--accent2:#fafafa;--on:#000000;
+  }}
+  body{background:var(--bg)!important;font-family:"Inter","Helvetica Neue",Helvetica,Arial,sans-serif;letter-spacing:-.005em}
+  header{border-bottom:1px solid var(--line);margin:0 -16px;padding:14px 16px}
+  h1{font-size:15px;font-weight:700;letter-spacing:.14em;text-transform:uppercase}
+  h1 .logo{width:22px;height:22px;border-radius:0;background:var(--ink);color:var(--on);font-size:12px;box-shadow:none;filter:grayscale(1) contrast(2)}
+  .icon{border-radius:0;width:36px;height:36px;border:1px solid var(--line);background:var(--bg);box-shadow:none;color:var(--ink);font-size:16px}
+  .icon:active{background:var(--ink);color:var(--on)}
+
+  .panel{border-radius:0;border:1px solid var(--line);box-shadow:none;padding:28px 24px;background:var(--card)}
+  .panel h2{font-size:26px;font-weight:700;letter-spacing:-.03em}
+  .panel p{color:var(--mute)}
+  .hero{border-radius:0;background:var(--ink);box-shadow:none;width:48px;height:48px;font-size:22px;filter:grayscale(1) contrast(2) invert(0)}
+  @media(prefers-color-scheme:dark){.hero,h1 .logo{filter:grayscale(1)}}
+  button.btn{border-radius:0;box-shadow:none!important;border:1px solid var(--line);font-weight:600;letter-spacing:.01em;padding:16px 18px}
+  .primary,.read{background:var(--ink)!important;color:var(--on)!important}
+  .ghost,.leave{background:var(--bg)!important;color:var(--ink)!important;border:1px solid var(--line)!important}
+  button.btn:active{transform:none;opacity:.8}
+
+  .progress{color:var(--ink);font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;margin-bottom:14px}
+  .bar{height:2px;border-radius:0;background:var(--hair)}
+  .bar>i{border-radius:0;background:var(--ink)!important}
+  .pill{background:none;color:var(--ink);border:1px solid var(--line);border-radius:0;padding:2px 8px;font-weight:600}
+
+  .deck{margin:0}
+  .deck::before,.deck::after{border-radius:0;border:1px solid var(--line);background:var(--bg)}
+  .deck::before{transform:translate(0,10px) scaleX(.94);opacity:1}
+  .deck::after{transform:translate(0,5px) scaleX(.97);opacity:1}
+  .card{border-radius:0;border:1px solid var(--line);box-shadow:none;padding:24px 22px 18px;background:var(--card)}
+  .card::before{display:none}
+  .card.badge-read::after,.card.badge-leave::after{border-radius:0;color:var(--ink);background:var(--bg)}
+  .avatar{border-radius:0;box-shadow:none;text-shadow:none;width:52px;height:52px;font-size:24px;font-weight:700;
+    background:var(--ink)!important;color:var(--on)}
+  .name{font-size:26px;font-weight:700;letter-spacing:-.03em}
+  .addr{font-size:13px;font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;color:var(--mute)}
+  .count{border-radius:0;background:none;color:var(--ink);border:1px solid var(--line);padding:4px 10px;font-size:12px;font-weight:600;
+    letter-spacing:.1em;text-transform:uppercase;margin:18px 0 10px}
+  .count::before{border-radius:0;background:var(--ink);box-shadow:none;width:6px;height:6px}
+  ul.subs{border-top:1px solid var(--line);margin-top:6px}
+  ul.subs li{border-top:1px solid var(--hair);padding:12px 0;font-size:14px}
+  ul.subs li:first-child{border-top:0}
+  ul.subs li span:last-child{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
+  .more{padding:10px 0 0;font-size:12px;letter-spacing:.04em}
+  .actions{margin-top:18px;gap:0}
+  .actions .btn{border-radius:0;padding:18px 12px}
+  .actions .leave{border-right:0!important}
+  .row{border-top:1px solid var(--hair);margin-top:14px;padding-top:8px}
+  .link{color:var(--ink);font-size:13px;text-decoration:underline;text-underline-offset:3px}
+  .link:disabled{color:var(--mute);text-decoration:none}
+  .hint{font-size:11px;letter-spacing:.08em;text-transform:uppercase;margin-top:26px}
+  .toast{border-radius:0;background:var(--ink);color:var(--on);box-shadow:none}
+  .stats{gap:0;border:1px solid var(--line);margin:18px 0 8px}
+  .stat{border:0;border-right:1px solid var(--line);border-radius:0;background:none}
+  .stat:last-child{border-right:0}
+  .stat b{background:none;-webkit-background-clip:initial;background-clip:initial;color:var(--ink);font-size:30px;font-weight:700}
+  .stat span{text-transform:uppercase;letter-spacing:.08em;font-size:10px}
+  .spinner{border-radius:50%;border:2px solid var(--hair);border-top-color:var(--ink)}
+  input[type=text],textarea,select{border-radius:0;border:1px solid var(--line);background:var(--bg)}
+  input:focus,textarea:focus,select:focus{outline:2px solid var(--ink);outline-offset:0}
+  label{text-transform:uppercase;letter-spacing:.08em;font-size:11px;font-weight:600;color:var(--ink)}
+  pre.log{border-radius:0;border:1px solid var(--hair);background:var(--bg)}
+  .err{color:var(--ink);border-left:3px solid var(--ink);padding-left:10px}
+
+  /* ---------- Soft monochrome theme (stone greys) ---------- */
+  :root{
+    --bg:#efeeec;--card:#f9f8f6;--ink:#2e2d2b;--mute:#8d8b86;--line:#dad8d3;--hair:#e6e4df;
+    --green:#2e2d2b;--green2:#2e2d2b;--greenbg:#e8e6e1;--accent:#2e2d2b;--accent2:#2e2d2b;--on:#f9f8f6;
+    --btn:#3a3935;--soft:#e8e6e1;
+    --shadow:0 1px 2px rgba(46,45,43,.05),0 10px 28px -12px rgba(46,45,43,.18);
+  }
+  @media(prefers-color-scheme:dark){:root{
+    --bg:#1a1918;--card:#232220;--ink:#e7e5e1;--mute:#8f8d88;--line:#37352f;--hair:#2d2b27;
+    --green:#e7e5e1;--green2:#e7e5e1;--greenbg:#2d2b27;--accent:#e7e5e1;--accent2:#e7e5e1;--on:#1a1918;
+    --btn:#d9d7d2;--soft:#2d2b27;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 14px 32px -14px rgba(0,0,0,.55);
+  }}
+  body{background:var(--bg)!important}
+  header{border-bottom:1px solid var(--line)}
+  h1{font-weight:600;letter-spacing:.12em}
+  h1 .logo{border-radius:7px;background:var(--btn)}
+  .icon{border-radius:10px;border:1px solid var(--line);background:var(--card);box-shadow:var(--shadow)}
+  .icon:active{background:var(--soft);color:var(--ink)}
+
+  .panel{border-radius:20px;border:1px solid var(--line);box-shadow:var(--shadow);background:var(--card)}
+  .panel h2{font-weight:650}
+  .hero{border-radius:14px;background:var(--btn)}
+  button.btn{border-radius:12px;border:1px solid var(--line);font-weight:600}
+  .primary,.read{background:var(--btn)!important;color:var(--on)!important;border-color:var(--btn)!important}
+  .ghost,.leave{background:var(--card)!important;color:var(--ink)!important;border:1px solid var(--line)!important}
+  button.btn:active{opacity:.85}
+
+  .progress{color:var(--mute);font-weight:500}
+  .bar{height:4px;border-radius:99px;background:var(--line)}
+  .bar>i{border-radius:99px;background:var(--btn)!important}
+  .pill{border-radius:99px;border:0;background:var(--soft);color:var(--ink);padding:3px 10px;font-weight:500}
+
+  .deck{margin:0 6px}
+  .deck::before,.deck::after{border-radius:20px;border:1px solid var(--line);background:var(--card)}
+  .deck::before{transform:translateY(12px) scaleX(.9);opacity:.55}
+  .deck::after{transform:translateY(6px) scaleX(.95);opacity:.85}
+  .card{border-radius:20px;border:1px solid var(--line);box-shadow:var(--shadow);background:var(--card)}
+  .card.badge-read::after,.card.badge-leave::after{border-radius:8px;background:var(--soft);border:1px solid var(--line);color:var(--ink)}
+  .avatar{border-radius:16px;background:linear-gradient(145deg,#8d8b86,#4a4944)!important;color:#f9f8f6;box-shadow:none}
+  @media(prefers-color-scheme:dark){.avatar{background:linear-gradient(145deg,#6b6963,#3b3a36)!important}}
+  .name{font-weight:650}
+  .addr{color:var(--mute)}
+  .count{border-radius:99px;border:0;background:var(--soft);padding:5px 12px;font-weight:600;letter-spacing:.06em}
+  .count::before{border-radius:50%;background:var(--ink)}
+  ul.subs{border-top:0}
+  ul.subs li{border-top:1px solid var(--hair)}
+  ul.subs li:first-child{border-top:1px solid var(--hair)}
+  .actions{gap:10px}
+  .actions .btn{border-radius:14px}
+  .actions .leave{border-right:1px solid var(--line)!important}
+  .row{border-top:0;margin-top:8px}
+  .link{color:var(--mute);text-decoration:none}
+  .link:hover{color:var(--ink)}
+  .link:disabled{opacity:.45}
+  .hint{color:var(--mute);letter-spacing:.06em}
+  .toast{border-radius:12px;background:var(--btn);color:var(--on);box-shadow:var(--shadow)}
+  .stats{border:0;gap:10px}
+  .stat{border:1px solid var(--line);border-radius:14px;background:var(--bg)}
+  .stat:last-child{border-right:1px solid var(--line)}
+  .stat b{color:var(--ink)}
+  input[type=text],textarea,select{border-radius:12px;border:1px solid var(--line);background:var(--bg)}
+  input:focus,textarea:focus,select:focus{outline:2px solid var(--mute);outline-offset:0}
+  label{color:var(--mute);font-weight:500}
+  pre.log{border-radius:12px;border:1px solid var(--hair);background:var(--bg)}
+  .err{border-left:3px solid var(--mute)}
+</style>
+</head>
+<body>
+<header>
+  <h1><span class="logo">✉️</span>Inbox Sweep</h1>
+  <button class="icon" id="btnSettings" title="Settings" aria-label="Settings">⚙︎</button>
+</header>
+<main id="main"></main>
+<div class="toast" id="toast"></div>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+"use strict";
+/* ------------------------------------------------------------------ *
+ * Inbox Sweep — group every unread inbox message by sender and let you
+ * tap through senders: "Mark all read" or "Leave unread".
+ * Runs entirely in the browser against the Gmail REST API.
+ * ------------------------------------------------------------------ */
+
+const SCOPE = "https://www.googleapis.com/auth/gmail.modify";
+const GMAIL = "https://gmail.googleapis.com/gmail/v1/users/me";
+const QUERY = "is:unread in:inbox";           // all unread inbox mail, no category filter
+const MAX_MESSAGES = 5000;                    // safety cap on how many unread messages to scan
+const CONCURRENCY = 8;
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const store = {
+  get(k, d){ try { const v = localStorage.getItem("sweep."+k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v){ try { localStorage.setItem("sweep."+k, JSON.stringify(v)); } catch {} }
+};
+
+const S = {
+  clientId: store.get("clientId", ""),
+  groupBy: store.get("groupBy", "address"),    // "address" | "domain"
+  allow: store.get("allow", []),               // senders never shown
+  token: null, tokenClient: null, demo: false,
+  messages: [],                                // [{id, from, name, addr, domain, subject, ts}]
+  groups: [], idx: 0, history: [],             // history of actions for undo
+  stats: {read: 0, msgs: 0, left: 0},
+  view: "start"
+};
+
+/* ---------- Auth ---------- */
+function ensureTokenClient(){
+  if (S.tokenClient) return true;
+  if (!window.google || !google.accounts) return false;
+  S.tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: S.clientId, scope: SCOPE, callback: () => {}
+  });
+  return true;
+}
+function requestToken(prompt){
+  return new Promise((resolve, reject) => {
+    if (!ensureTokenClient()) return reject(new Error("Google sign-in script not loaded yet. Check your connection and retry."));
+    S.tokenClient.callback = r => {
+      if (r.error) return reject(new Error(r.error_description || r.error));
+      S.token = r.access_token; resolve(r.access_token);
+    };
+    S.tokenClient.error_callback = e => reject(new Error(e.message || e.type || "Sign-in cancelled"));
+    S.tokenClient.requestAccessToken({prompt: prompt || ""});
+  });
+}
+
+/* ---------- Gmail API ---------- */
+async function api(path, opts = {}, retry = true){
+  const res = await fetch(GMAIL + path, {
+    ...opts,
+    headers: {"Authorization": "Bearer " + S.token, "Content-Type": "application/json", ...(opts.headers || {})}
+  });
+  if (res.status === 401 && retry){ await requestToken(""); return api(path, opts, false); }
+  if (res.status === 429 || res.status === 503){ await new Promise(r => setTimeout(r, 1200)); return api(path, opts, false); }
+  if (!res.ok){
+    let m = res.statusText; try { m = (await res.json()).error.message; } catch {}
+    throw new Error(`Gmail API ${res.status}: ${m}`);
+  }
+  return res.status === 204 ? null : res.json();
+}
+
+async function listUnreadIds(onProgress){
+  const ids = []; let pageToken = "";
+  do {
+    const q = new URLSearchParams({q: QUERY, maxResults: "500"});
+    if (pageToken) q.set("pageToken", pageToken);
+    const r = await api("/messages?" + q);
+    (r.messages || []).forEach(m => ids.push(m.id));
+    pageToken = r.nextPageToken || "";
+    onProgress(`Found ${ids.length} unread…`);
+  } while (pageToken && ids.length < MAX_MESSAGES);
+  return ids.slice(0, MAX_MESSAGES);
+}
+
+async function fetchMeta(ids, onProgress){
+  const out = []; let i = 0, done = 0;
+  async function worker(){
+    while (i < ids.length){
+      const id = ids[i++];
+      try {
+        const q = "?format=metadata&metadataHeaders=From&metadataHeaders=Subject";
+        const m = await api("/messages/" + id + q);
+        const h = n => ((m.payload.headers || []).find(x => x.name.toLowerCase() === n) || {}).value || "";
+        const p = parseFrom(h("from"));
+        out.push({id, ...p, subject: h("subject") || "(no subject)", ts: Number(m.internalDate) || 0});
+      } catch (e) { console.warn("skip", id, e); }
+      if (++done % 10 === 0 || done === ids.length) onProgress(`Reading headers ${done}/${ids.length}…`);
+    }
+  }
+  await Promise.all(Array.from({length: Math.min(CONCURRENCY, ids.length)}, worker));
+  return out;
+}
+
+async function setUnread(ids, unread){
+  if (S.demo) return;
+  for (let i = 0; i < ids.length; i += 1000){
+    const body = unread ? {ids: ids.slice(i, i+1000), addLabelIds: ["UNREAD"]}
+                        : {ids: ids.slice(i, i+1000), removeLabelIds: ["UNREAD"]};
+    await api("/messages/batchModify", {method: "POST", body: JSON.stringify(body)});
+  }
+}
+
+/* ---------- Grouping ---------- */
+function parseFrom(raw){
+  let name = "", addr = raw.trim();
+  const m = raw.match(/^\s*(?:"?([^"<]*?)"?\s*)?<([^>]+)>\s*$/);
+  if (m){ name = (m[1] || "").trim(); addr = m[2].trim(); }
+  addr = addr.toLowerCase();
+  const domain = addr.includes("@") ? addr.split("@").pop() : addr;
+  return {from: raw, name: name || addr.split("@")[0] || addr, addr, domain};
+}
+
+function buildGroups(){
+  const allow = new Set(S.allow.map(s => s.toLowerCase()));
+  const map = new Map();
+  for (const m of S.messages){
+    if (allow.has(m.addr) || allow.has(m.domain)) continue;
+    const key = S.groupBy === "domain" ? m.domain : m.addr;
+    let g = map.get(key);
+    if (!g){ g = {key, name: m.name, addr: key, ids: [], items: [], names: {}}; map.set(key, g); }
+    g.ids.push(m.id); g.items.push(m);
+    g.names[m.name] = (g.names[m.name] || 0) + 1;
+  }
+  const groups = [...map.values()];
+  for (const g of groups){
+    g.items.sort((a, b) => b.ts - a.ts);
+    g.name = S.groupBy === "domain"
+      ? g.key
+      : Object.entries(g.names).sort((a, b) => b[1] - a[1])[0][0];
+  }
+  groups.sort((a, b) => b.ids.length - a.ids.length || a.name.localeCompare(b.name));
+  S.groups = groups; S.idx = 0; S.history = []; S.stats = {read: 0, msgs: 0, left: 0};
+}
+
+/* ---------- Demo data ---------- */
+function demoMessages(){
+  const senders = [
+    ["Deliveroo","hello@deliveroo.co.uk",["20% off your next order","Your weekend treat awaits","New restaurants near you","Free delivery ends tonight","We miss you"],14],
+    ["Amazon Prime","store-news@amazon.co.uk",["Black Friday deals start now","Recommended for you","Your wishlist item is on sale"],9],
+    ["LinkedIn","jobs-listings@linkedin.com",["8 new jobs for Finance Director","Your profile appeared in 12 searches"],7],
+    ["Monzo","hello@monzo.com",["Your monthly summary is ready"],1],
+    ["Trainline","info@trainline.com",["Railcard offers","Advance fares open"],5],
+    ["Strava","no-reply@strava.com",["Your year in sport so far","Kudos from 3 athletes"],4],
+    ["Substack","hello@substack.com",["Top reads this week","New from authors you follow"],6],
+    ["Notion","team@makenotion.com",["What's new in Notion"],1],
+    ["Eventbrite","hello@eventbrite.com",["Events near you this weekend","Last chance: tickets going fast"],3]
+  ];
+  const out = []; let n = 0; const now = Date.now();
+  for (const [name, addr, subs, count] of senders){
+    for (let i = 0; i < count; i++){
+      out.push({id: "demo" + (n++), from: `${name} <${addr}>`, name, addr, domain: addr.split("@")[1],
+                subject: subs[i % subs.length], ts: now - (n * 3600e3 * (1 + Math.random() * 5))});
+    }
+  }
+  return out;
+}
+
+/* ---------- Views ---------- */
+function setView(v){ S.view = v; render(); }
+
+function render(){
+  const el = $("#main");
+  if (S.view === "start") return renderStart(el);
+  if (S.view === "loading") return;                 // loading text is set by setLoading()
+  if (S.view === "carousel") return renderCard(el);
+  if (S.view === "done") return renderDone(el);
+  if (S.view === "settings") return renderSettings(el);
+}
+
+function renderStart(el){
+  el.innerHTML = `
+    <div class="panel">
+      <div class="hero">📬</div>
+      <h2>Sweep your unread inbox</h2>
+      <p>Groups every unread message in your Gmail inbox by sender. Tap through each sender: mark all read, or leave unread.</p>
+      <div class="stack">
+        <button class="btn primary" id="go">Sign in with Google &amp; scan</button>
+        <button class="btn ghost" id="demo">Try with sample data</button>
+      </div>
+      <div class="err" id="err"></div>
+      <p class="hint">Nothing changes in Gmail until you tap "Mark all read".</p>
+    </div>`;
+  $("#go").onclick = startReal;
+  $("#demo").onclick = startDemo;
+}
+
+function setLoading(text){
+  S.view = "loading";
+  $("#main").innerHTML = `<div class="panel"><div class="spinner"></div><h2>Scanning…</h2><p id="ltext">${esc(text)}</p></div>`;
+}
+const loadingText = t => { const e = $("#ltext"); if (e) e.textContent = t; };
+
+async function startReal(){
+  if (!S.clientId){ setView("settings"); toast("Add your Google OAuth client ID first"); return; }
+  try {
+    setLoading("Waiting for Google sign-in…");
+    S.demo = false; S.tokenClient = null;
+    await requestToken("consent");
+    setLoading("Listing unread inbox mail…");
+    const ids = await listUnreadIds(loadingText);
+    if (!ids.length){ S.messages = []; buildGroups(); return setView("done"); }
+    S.messages = await fetchMeta(ids, loadingText);
+    buildGroups();
+    setView(S.groups.length ? "carousel" : "done");
+  } catch (e){
+    setView("start"); $("#err").textContent = e.message;
+  }
+}
+function startDemo(){
+  S.demo = true; S.messages = demoMessages(); buildGroups(); setView("carousel");
+}
+
+function hueFor(s){ let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 360; return h; }
+function colourFor(s){ const h = hueFor(s); return `linear-gradient(135deg,hsl(${h} 70% 56%),hsl(${(h + 40) % 360} 68% 44%))`; }
+function hueSolid(s){ return `hsl(${hueFor(s)} 70% 52%)`; }
+function ago(ts){
+  const d = (Date.now() - ts) / 36e5;
+  if (d < 1) return "now"; if (d < 24) return Math.round(d) + "h";
+  const days = Math.round(d / 24); return days < 30 ? days + "d" : Math.round(days / 30) + "mo";
+}
+
+function renderCard(el){
+  const total = S.groups.length;
+  if (S.idx >= total) return setView("done");
+  const g = S.groups[S.idx];
+  const pct = Math.round(S.idx / total * 100);
+  const shown = g.items.slice(0, 3);
+  const gmailUrl = "https://mail.google.com/mail/u/0/#search/" +
+    encodeURIComponent((S.groupBy === "domain" ? "from:@" : "from:") + g.key + " is:unread in:inbox");
+  el.innerHTML = `
+    <div class="progress"><span>${S.idx + 1} of ${total}</span><div class="bar"><i style="width:${pct}%"></i></div>
+      <span class="pill">${S.stats.msgs} read</span></div>
+    <div class="deck ${S.idx >= total - 1 ? "last" : ""}">
+    <div class="card" id="card" style="--hue:${hueSolid(g.key)}">
+      <div class="avatar" style="background:${colourFor(g.key)}">${esc((g.name[0] || "?").toUpperCase())}</div>
+      <div class="name">${esc(g.name)}</div>
+      <div class="addr">${esc(S.groupBy === "domain" ? "@" + g.key : g.addr)}</div>
+      <div class="count">${g.ids.length} unread</div>
+      <ul class="subs">
+        ${shown.map(m => `<li><span>${esc(m.subject)}</span><span>${ago(m.ts)}</span></li>`).join("")}
+      </ul>
+      ${g.ids.length > shown.length ? `<div class="more">+ ${g.ids.length - shown.length} more</div>` : ""}
+      <div class="actions">
+        <button class="btn leave" id="leave">Leave unread</button>
+        <button class="btn read" id="read">Mark all read</button>
+      </div>
+      <div class="row">
+        <button class="link" id="undo" ${S.history.length ? "" : "disabled"}>↩ Undo</button>
+        ${S.demo ? "<span></span>" : `<a class="link" href="${gmailUrl}" target="_blank" rel="noopener">Open in Gmail ↗</a>`}
+      </div>
+    </div>
+    </div>
+    <div class="hint">Swipe right = mark read · swipe left = leave unread</div>`;
+  $("#read").onclick = () => act("read");
+  $("#leave").onclick = () => act("leave");
+  $("#undo").onclick = undo;
+  attachSwipe($("#card"));
+}
+
+function attachSwipe(card){
+  let x0 = null, dx = 0;
+  card.addEventListener("pointerdown", e => { if (e.target.closest("button,a")) return; x0 = e.clientX; dx = 0; card.style.transition = "none"; card.setPointerCapture(e.pointerId); });
+  card.addEventListener("pointermove", e => {
+    if (x0 === null) return; dx = e.clientX - x0;
+    card.style.transform = `translateX(${dx}px) rotate(${dx / 30}deg)`;
+    card.style.borderColor = dx > 40 ? "var(--green)" : dx < -40 ? "var(--mute)" : "var(--line)";
+    card.classList.toggle("badge-read", dx > 40); card.classList.toggle("badge-leave", dx < -40);
+  });
+  const end = () => {
+    if (x0 === null) return; x0 = null; card.style.transition = "";
+    if (dx > 90) act("read"); else if (dx < -90) act("leave");
+    else { card.style.transform = ""; card.style.borderColor = ""; card.classList.remove("badge-read","badge-leave"); }
+  };
+  card.addEventListener("pointerup", end); card.addEventListener("pointercancel", end);
+}
+
+let busy = false;
+async function act(kind){
+  if (busy || S.view !== "carousel") return;
+  const g = S.groups[S.idx]; if (!g) return;
+  busy = true;
+  const buttons = document.querySelectorAll(".card button"); buttons.forEach(b => b.disabled = true);
+  try {
+    if (kind === "read"){
+      await setUnread(g.ids, false);
+      S.stats.msgs += g.ids.length; S.stats.read++;
+      log(`marked read: ${g.addr} (${g.ids.length})`);
+    } else { S.stats.left++; }
+    S.history.push({kind, group: g});
+    S.idx++;
+    render();
+  } catch (e){
+    toast("Failed: " + e.message); buttons.forEach(b => b.disabled = false);
+  } finally { busy = false; }
+}
+
+async function undo(){
+  if (busy || !S.history.length) return;
+  busy = true;
+  const last = S.history.pop();
+  try {
+    if (last.kind === "read"){
+      await setUnread(last.group.ids, true);
+      S.stats.msgs -= last.group.ids.length; S.stats.read--;
+      log(`undo: ${last.group.addr} (${last.group.ids.length}) back to unread`);
+    } else { S.stats.left--; }
+    S.idx--;
+    toast("Undone");
+  } catch (e){
+    S.history.push(last); toast("Undo failed: " + e.message);
+  } finally { busy = false; }
+  setView("carousel");
+}
+
+function renderDone(el){
+  el.innerHTML = `
+    <div class="panel">
+      <h2>${S.groups.length ? "All done 🎉" : "Inbox zero unread 🎉"}</h2>
+      <p>${S.groups.length ? "You've been through every sender." : "No unread messages in your inbox."}</p>
+      <div class="stats">
+        <div class="stat"><b>${S.stats.msgs}</b><span>messages marked read</span></div>
+        <div class="stat"><b>${S.stats.read}</b><span>senders cleared</span></div>
+        <div class="stat"><b>${S.stats.left}</b><span>left unread</span></div>
+      </div>
+      <div class="stack">
+        ${S.history.length ? '<button class="btn ghost" id="undoLast">↩ Undo last</button>' : ""}
+        <button class="btn primary" id="again">${S.demo ? "Restart demo" : "Scan again"}</button>
+      </div>
+    </div>`;
+  const u = $("#undoLast"); if (u) u.onclick = async () => { await undo(); };
+  $("#again").onclick = () => S.demo ? startDemo() : startReal();
+}
+
+function renderSettings(el){
+  el.innerHTML = `
+    <div class="panel">
+      <h2>Settings</h2>
+      <label for="cid">Google OAuth client ID (Web application)</label>
+      <input type="text" id="cid" placeholder="1234-abc.apps.googleusercontent.com" value="${esc(S.clientId)}" autocapitalize="off" autocorrect="off">
+      <label for="gb">Group senders by</label>
+      <select id="gb">
+        <option value="address" ${S.groupBy === "address" ? "selected" : ""}>Exact sender address</option>
+        <option value="domain" ${S.groupBy === "domain" ? "selected" : ""}>Sender domain (merges rotating addresses)</option>
+      </select>
+      <label for="al">Never show these senders (one address or domain per line)</label>
+      <textarea id="al" placeholder="bank@example.com&#10;mycompany.com">${esc(S.allow.join("\n"))}</textarea>
+      <label>Activity log (this device)</label>
+      <pre class="log" id="logbox">${esc(store.get("log", []).slice(-40).reverse().join("\n") || "Nothing yet")}</pre>
+      <div class="stack">
+        <button class="btn primary" id="save">Save</button>
+        <button class="btn ghost" id="cancel">Back</button>
+      </div>
+      <p class="hint">Sign-in needs this page served over https (or http://localhost) and its origin added to your OAuth client's "Authorised JavaScript origins".</p>
+    </div>`;
+  $("#save").onclick = () => {
+    S.clientId = $("#cid").value.trim(); store.set("clientId", S.clientId);
+    S.groupBy = $("#gb").value; store.set("groupBy", S.groupBy);
+    S.allow = $("#al").value.split(/\n/).map(s => s.trim().toLowerCase()).filter(Boolean); store.set("allow", S.allow);
+    S.tokenClient = null;
+    if (S.messages.length){ buildGroups(); setView("carousel"); } else setView("start");
+    toast("Saved");
+  };
+  $("#cancel").onclick = () => setView(S.messages.length ? "carousel" : "start");
+}
+
+/* ---------- Helpers ---------- */
+function log(line){
+  const l = store.get("log", []); l.push(new Date().toISOString().replace("T"," ").slice(0,19) + "  " + line);
+  store.set("log", l.slice(-200));
+}
+let toastT;
+function toast(t){ const e = $("#toast"); e.textContent = t; e.classList.add("on"); clearTimeout(toastT); toastT = setTimeout(() => e.classList.remove("on"), 2200); }
+
+$("#btnSettings").onclick = () => setView("settings");
+document.addEventListener("keydown", e => {
+  if (S.view !== "carousel" || e.target.matches("input,textarea,select")) return;
+  if (e.key === "ArrowRight") act("read");
+  else if (e.key === "ArrowLeft") act("leave");
+  else if ((e.key === "z" || e.key === "Backspace")) undo();
+});
+
+render();
+</script>
+</body>
+</html>
